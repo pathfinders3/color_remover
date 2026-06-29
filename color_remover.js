@@ -1,5 +1,17 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d", { willReadFrequently: true });
+const copyAfterRemoveCheckbox = document.getElementById("copyAfterRemove");
+const toast = document.getElementById("toast");
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.add("show");
+
+  clearTimeout(showToast.timeoutId);
+  showToast.timeoutId = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 1800);
+}
 
 document.addEventListener("paste", async (event) => {
   const items = event.clipboardData.items;
@@ -23,7 +35,7 @@ document.addEventListener("paste", async (event) => {
   }
 });
 
-function removeGreen() {
+async function removeGreen() {
   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imgData.data;
 
@@ -49,10 +61,10 @@ function removeGreen() {
     }
   }
 
-  ctx.putImageData(imgData, 0, 0);
+  await applyEditedImage(imgData);
 }
 
-function removeRed() {
+async function removeRed() {
   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imgData.data;
 
@@ -70,7 +82,38 @@ function removeRed() {
     }
   }
 
+  await applyEditedImage(imgData);
+}
+
+async function applyEditedImage(imgData) {
   ctx.putImageData(imgData, 0, 0);
+
+  if (!copyAfterRemoveCheckbox || !copyAfterRemoveCheckbox.checked) {
+    return;
+  }
+
+  if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) {
+    alert("이 브라우저에서는 이미지 클립보드 복사를 지원하지 않습니다.");
+    return;
+  }
+
+  try {
+    const blob = await new Promise((resolve) => {
+      canvas.toBlob(resolve, "image/png");
+    });
+
+    if (!blob) {
+      alert("클립보드 복사를 위한 이미지 생성에 실패했습니다.");
+      return;
+    }
+
+    await navigator.clipboard.write([
+      new ClipboardItem({ "image/png": blob })
+    ]);
+    showToast("제거된 픽셀이 클립보드에 복사되었습니다.");
+  } catch (error) {
+    alert("클립보드 복사에 실패했습니다. 브라우저 권한을 확인해 주세요.");
+  }
 }
 
 function downloadPNG(filename = "removed_pixels.png") {
