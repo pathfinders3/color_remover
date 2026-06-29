@@ -52,9 +52,30 @@ function removeGreen() {
   ctx.putImageData(imgData, 0, 0);
 }
 
-function downloadPNG() {
+function removeRed() {
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imgData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    // 빨간색 판정
+    const isRed = r > g + 25 && r > b + 25 && r > 80;
+
+    if (isRed) {
+      // 투명 처리
+      data[i + 3] = 0;
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+}
+
+function downloadPNG(filename = "removed_pixels.png") {
   const a = document.createElement("a");
-  a.download = "removed_green.png";
+  a.download = filename;
   a.href = canvas.toDataURL("image/png");
   a.click();
 }
