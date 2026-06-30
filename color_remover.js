@@ -125,6 +125,31 @@ async function applyEditedImage(editedImgData, removedImgData) {
   showToast("결과가 하단 캔버스에 반영되었습니다.");
 }
 
+async function copyResultToClipboard() {
+  if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) {
+    alert("이 브라우저에서는 이미지 클립보드 복사를 지원하지 않습니다.");
+    return;
+  }
+
+  try {
+    const blob = await new Promise((resolve) => {
+      resultCanvas.toBlob(resolve, "image/png");
+    });
+
+    if (!blob) {
+      alert("클립보드 복사를 위한 이미지 생성에 실패했습니다.");
+      return;
+    }
+
+    await navigator.clipboard.write([
+      new ClipboardItem({ "image/png": blob })
+    ]);
+    showToast("하단 캔버스 이미지가 클립보드에 복사되었습니다.");
+  } catch (error) {
+    alert("클립보드 복사에 실패했습니다. 브라우저 권한을 확인해 주세요.");
+  }
+}
+
 function downloadPNG(filename = "removed_pixels.png") {
   const a = document.createElement("a");
   a.download = filename;
