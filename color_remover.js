@@ -2,7 +2,12 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d", { willReadFrequently: true });
 const resultCanvas = document.getElementById("resultCanvas");
 const resultCtx = resultCanvas.getContext("2d", { willReadFrequently: true });
+const historyRange = document.getElementById("historyRange");
+const historyLabel = document.getElementById("historyLabel");
 const toast = document.getElementById("toast");
+
+let history = [];
+let selectedHistoryIndex = 0;
 
 function showToast(message) {
   toast.textContent = message;
@@ -12,6 +17,56 @@ function showToast(message) {
   showToast.timeoutId = setTimeout(() => {
     toast.classList.remove("show");
   }, 1800);
+}
+
+function updateHistoryUI() {
+  if (!history.length) {
+    historyRange.max = "0";
+    historyRange.value = "0";
+    historyLabel.textContent = "0 / 0";
+    return;
+  }
+
+  const maxIndex = history.length - 1;
+  const safeIndex = Math.min(selectedHistoryIndex, maxIndex);
+  historyRange.max = String(maxIndex);
+  historyRange.value = String(safeIndex);
+  historyLabel.textContent = `${safeIndex} / ${maxIndex}`;
+}
+
+function resetHistory() {
+  history = [];
+  selectedHistoryIndex = 0;
+  updateHistoryUI();
+}
+
+function pushHistoryState(imgData) {
+  history.push(imgData);
+  selectedHistoryIndex = history.length - 1;
+  updateHistoryUI();
+}
+
+function applyHistoryState(index) {
+  if (!history.length) {
+    return;
+  }
+
+  const safeIndex = Math.max(0, Math.min(index, history.length - 1));
+  const imgData = history[safeIndex];
+
+  if (!imgData) {
+    return;
+  }
+
+  canvas.width = imgData.width;
+  canvas.height = imgData.height;
+  ctx.putImageData(imgData, 0, 0);
+  selectedHistoryIndex = safeIndex;
+  updateHistoryUI();
+}
+
+function captureCurrentCanvasImageData() {
+  return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }
 
 function isGreenPixel(r, g, b) {
@@ -61,12 +116,19 @@ document.addEventListener("paste", async (event) => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         resultCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
         ctx.drawImage(img, 0, 0);
+
+        resetHistory();
+        pushHistoryState(captureCurrentCanvasImageData());
       };
 
       img.src = URL.createObjectURL(file);
       break;
     }
   }
+});
+
+historyRange.addEventListener("change", () => {
+  applyHistoryState(Number(historyRange.value));
 });
 
 function findFirstGreens() {
@@ -88,6 +150,7 @@ function findFirstGreens() {
     resultCtx.fillRect(x, y, 1, 1);
   });
 
+  pushHistoryState(resultCtx.getImageData(0, 0, resultCanvas.width, resultCanvas.height));
   showToast("각 행의 첫 녹색 픽셀 위치를 결과 캔버스에 표시했습니다.");
 }
 
@@ -174,6 +237,11 @@ async function applyEditedImage(editedImgData, removedImgData) {
   resultCanvas.height = canvas.height;
   resultCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
   resultCtx.putImageData(removedImgData, 0, 0);
+  pushHistoryState(new ImageData(
+    new Uint8ClampedArray(removedImgData.data),
+    removedImgData.width,
+    removedImgData.height
+  ));
   showToast("결과가 하단 캔버스에 반영되었습니다.");
 }
 
