@@ -92,11 +92,7 @@ function findFirstGreens() {
   const editedImgData = paintMagentaBeforeFirstGreen(sourceImgData);
 
   ctx.putImageData(editedImgData, 0, 0);
-
-  resultCanvas.width = canvas.width;
-  resultCanvas.height = canvas.height;
   resultCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-  resultCtx.putImageData(editedImgData, 0, 0);
   showToast("각 행의 첫 녹색점까지를 magenta로 칠했습니다.");
 }
 
