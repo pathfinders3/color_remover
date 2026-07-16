@@ -18,13 +18,8 @@ function isGreenPixel(r, g, b) {
   return g > r + 25 && g > b + 25 && g > 80;
 }
 
-function paintMagentaBeforeFirstGreen(sourceImgData) {
-  const editedImgData = new ImageData(
-    new Uint8ClampedArray(sourceImgData.data),
-    sourceImgData.width,
-    sourceImgData.height
-  );
-  const editedData = editedImgData.data;
+function getFirstGreenXs(sourceImgData) {
+  const firstGreenXs = [];
 
   for (let y = 0; y < sourceImgData.height; y += 1) {
     let firstGreenX = -1;
@@ -41,20 +36,12 @@ function paintMagentaBeforeFirstGreen(sourceImgData) {
       }
     }
 
-    if (firstGreenX === -1) {
-      continue;
-    }
-
-    for (let x = 0; x <= firstGreenX; x += 1) {
-      const offset = (y * sourceImgData.width + x) * 4;
-      editedData[offset] = 255;
-      editedData[offset + 1] = 0;
-      editedData[offset + 2] = 255;
-      editedData[offset + 3] = 255;
+    if (firstGreenX !== -1) {
+      firstGreenXs.push(firstGreenX);
     }
   }
 
-  return editedImgData;
+  return firstGreenXs;
 }
 
 document.addEventListener("paste", async (event) => {
@@ -89,11 +76,19 @@ function findFirstGreens() {
   }
 
   const sourceImgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const editedImgData = paintMagentaBeforeFirstGreen(sourceImgData);
+  const firstGreenXs = getFirstGreenXs(sourceImgData);
 
-  ctx.putImageData(editedImgData, 0, 0);
+  resultCanvas.width = canvas.width;
+  resultCanvas.height = canvas.height;
   resultCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-  showToast("각 행의 첫 녹색점까지를 magenta로 칠했습니다.");
+  resultCtx.fillStyle = "#00ff00";
+
+  firstGreenXs.forEach((x, index) => {
+    const y = index;
+    resultCtx.fillRect(x, y, 1, 1);
+  });
+
+  showToast("각 행의 첫 녹색 픽셀 위치를 결과 캔버스에 표시했습니다.");
 }
 
 async function removeGreen() {
