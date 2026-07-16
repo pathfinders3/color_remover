@@ -14,6 +14,49 @@ function showToast(message) {
   }, 1800);
 }
 
+function isGreenPixel(r, g, b) {
+  return g > r + 25 && g > b + 25 && g > 80;
+}
+
+function paintMagentaBeforeFirstGreen(sourceImgData) {
+  const editedImgData = new ImageData(
+    new Uint8ClampedArray(sourceImgData.data),
+    sourceImgData.width,
+    sourceImgData.height
+  );
+  const editedData = editedImgData.data;
+
+  for (let y = 0; y < sourceImgData.height; y += 1) {
+    let firstGreenX = -1;
+
+    for (let x = 0; x < sourceImgData.width; x += 1) {
+      const offset = (y * sourceImgData.width + x) * 4;
+      const r = sourceImgData.data[offset];
+      const g = sourceImgData.data[offset + 1];
+      const b = sourceImgData.data[offset + 2];
+
+      if (isGreenPixel(r, g, b)) {
+        firstGreenX = x;
+        break;
+      }
+    }
+
+    if (firstGreenX === -1) {
+      continue;
+    }
+
+    for (let x = 0; x <= firstGreenX; x += 1) {
+      const offset = (y * sourceImgData.width + x) * 4;
+      editedData[offset] = 255;
+      editedData[offset + 1] = 0;
+      editedData[offset + 2] = 255;
+      editedData[offset + 3] = 255;
+    }
+  }
+
+  return editedImgData;
+}
+
 document.addEventListener("paste", async (event) => {
   const items = event.clipboardData.items;
 
@@ -39,6 +82,24 @@ document.addEventListener("paste", async (event) => {
   }
 });
 
+function findFirstGreens() {
+  if (!canvas.width || !canvas.height) {
+    showToast("이미지를 먼저 붙여넣어 주세요.");
+    return;
+  }
+
+  const sourceImgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const editedImgData = paintMagentaBeforeFirstGreen(sourceImgData);
+
+  ctx.putImageData(editedImgData, 0, 0);
+
+  resultCanvas.width = canvas.width;
+  resultCanvas.height = canvas.height;
+  resultCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+  resultCtx.putImageData(editedImgData, 0, 0);
+  showToast("각 행의 첫 녹색점까지를 magenta로 칠했습니다.");
+}
+
 async function removeGreen() {
   const sourceImgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const editedImgData = new ImageData(
@@ -57,7 +118,7 @@ async function removeGreen() {
     const b = sourceData[i + 2];
 
     // 녹색 판정
-    const isGreen = g > r + 25 && g > b + 25 && g > 80;
+    const isGreen = isGreenPixel(r, g, b);
 
     if (isGreen) {
       // 투명 처리
