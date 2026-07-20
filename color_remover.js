@@ -99,6 +99,155 @@ function getFirstGreenXs(sourceImgData) {
   return firstGreenXs;
 }
 
+/**
+ * 외곽선만 추출하여 원본 그림을 제거한 결과를 반환
+ * @param {HTMLCanvasElement} inputCanvas - 입력 캔버스
+ * @param {number} tolerance - 배경 색상 허용치 (기본 35)
+ * @param {boolean} transparentBg - 배경을 투명하게 할지 여부 (기본 true)
+ * @returns {ImageData} 외곽선만 남은 ImageData
+ */
+function extractOuterContourOnly(inputCanvas, tolerance = 35, transparentBg = true) {
+  const ctx = inputCanvas.getContext("2d", { willReadFrequently: true });
+  const width = inputCanvas.width;
+  const height = inputCanvas.height;
+
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const data = imgData.data;
+  const mask = new Uint8Array(width * height);
+
+  function getIndex(x, y) {
+    return y * width + x;
+  }
+
+  function isBackground(x, y) {
+    if (x < 0 || x >= width || y < 0 || y >= height) return true;
+    const idx = (y * width + x) * 4;
+    const r = data[idx];
+    const g = data[idx + 1];
+    const b = data[idx + 2];
+    const dist = Math.hypot(r - 255, g - 255, b - 255);
+    return dist <= tolerance;
+  }
+
+  const queue = [];
+  const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+  for (let x = 0; x < width; x += 1) {
+    if (isBackground(x, 0)) {
+      const idx = getIndex(x, 0);
+      if (mask[idx] === 0) {
+        mask[idx] = 1;
+        queue.push({ x, y: 0 });
+      }
+    }
+    if (isBackground(x, height - 1)) {
+      const idx = getIndex(x, height - 1);
+      if (mask[idx] === 0) {
+        mask[idx] = 1;
+        queue.push({ x, y: height - 1 });
+      }
+    }
+  }
+
+  for (let y = 0; y < height; y += 1) {
+    if (isBackground(0, y)) {
+      const idx = getIndex(0, y);
+      if (mask[idx] === 0) {
+        mask[idx] = 1;
+        queue.push({ x: 0, y });
+      }
+    }
+    if (isBackground(width - 1, y)) {
+      const idx = getIndex(width - 1, y);
+      if (mask[idx] === 0) {
+        mask[idx] = 1;
+        queue.push({ x: width - 1, y });
+      }
+    }
+  }
+
+  while (queue.length > 0) {
+    const { x, y } = queue.shift();
+    for (const [dx, dy] of directions) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+        const nIdx = getIndex(nx, ny);
+        if (mask[nIdx] === 0 && isBackground(nx, ny)) {
+          mask[nIdx] = 1;
+          queue.push({ x: nx, y: ny });
+        }
+      }
+    }
+  }
+
+  const resultData = new Uint8ClampedArray(width * height * 4);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const idx = getIndex(x, y);
+      const pIdx = idx * 4;
+
+      if (mask[idx] === 0) {
+        let isOuterBoundary = false;
+
+        for (const [dx, dy] of directions) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height || mask[getIndex(nx, ny)] === 1) {
+            isOuterBoundary = true;
+            break;
+          }
+        }
+
+        if (isOuterBoundary) {
+          resultData[pIdx] = 235;
+          resultData[pIdx + 1] = 40;
+          resultData[pIdx + 2] = 40;
+          resultData[pIdx + 3] = 255;
+        } else if (transparentBg) {
+          resultData[pIdx + 3] = 0;
+        } else {
+          resultData[pIdx] = 255;
+          resultData[pIdx + 1] = 255;
+          resultData[pIdx + 2] = 255;
+          resultData[pIdx + 3] = 255;
+        }
+      } else if (transparentBg) {
+        resultData[pIdx + 3] = 0;
+      } else {
+        resultData[pIdx] = 255;
+        resultData[pIdx + 1] = 255;
+        resultData[pIdx + 2] = 255;
+        resultData[pIdx + 3] = 255;
+      }
+    }
+  }
+
+  return new ImageData(resultData, width, height);
+}
+
+function extractOuterContour() {
+  if (!canvas.width || !canvas.height) {
+    showToast("이미지를 먼저 붙여넣어 주세요.");
+    return;
+  }
+
+  const contourImgData = extractOuterContourOnly(canvas, 35, true);
+
+  resultCanvas.width = canvas.width;
+  resultCanvas.height = canvas.height;
+  resultCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+  resultCtx.putImageData(contourImgData, 0, 0);
+
+  pushHistoryState(new ImageData(
+    new Uint8ClampedArray(contourImgData.data),
+    contourImgData.width,
+    contourImgData.height
+  ));
+  showToast("외곽선 추출 결과를 하단 캔버스에 표시했습니다.");
+}
+
 document.addEventListener("paste", async (event) => {
   const items = event.clipboardData.items;
 
